@@ -515,11 +515,37 @@ class="group h-12 flex items-center rounded-2xl bg-white dark:bg-slate-800 borde
                 showToast(\`成功获取 \${count} 个节点 IP\`, 'success');
             } catch(e) { showToast('获取数据失败，请重试', 'error'); console.error(e); }
         }
-        function copy() {
+        // 修复后的复制函数：异步捕获错误 + 降级方案
+        async function copy() {
             const out = document.getElementById('out');
-            if(!out.value) { showToast('没有内容可复制', 'error'); return; }
-            navigator.clipboard.writeText(out.value);
-            showToast('内容已复制到剪贴板', 'success');
+            if (!out.value.trim()) {
+                showToast('没有内容可复制', 'error');
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(out.value);
+                showToast('内容已复制到剪贴板', 'success');
+            } catch (err) {
+                console.warn('Clipboard API 失败，尝试降级方案:', err);
+                // 降级：创建临时 textarea 选中复制
+                try {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = out.value;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    textarea.setSelectionRange(0, 999999); // 对移动端友好
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    if (success) {
+                        showToast('内容已复制到剪贴板（降级方式）', 'success');
+                    } else {
+                        throw new Error('execCommand 返回 false');
+                    }
+                } catch (fallbackErr) {
+                    console.error('降级复制也失败:', fallbackErr);
+                    showToast('复制失败，请手动选择后 Ctrl+C 复制', 'error');
+                }
+            }
         }
         // 🎰 随机摇号功能
         async function randomSelect() {
